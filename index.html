@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Programa electoral de Vox – Elecciones generales 2026</title>
+<meta name="robots" content="noindex">
+<style>
+  :root { --borde:#d9d9d9; --fondo:#f3f3f3; --texto:#1a1a1a; --acento:#c8102e; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:#fff; color:var(--texto);
+    font-family: Arial, Helvetica, sans-serif; }
+  .visor { display:flex; flex-direction:column; height:100%; border:1px solid var(--borde); }
+  .barra { display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:8px 12px; border-bottom:1px solid var(--borde); background:#fff; font-size:14px; }
+  .barra .titulo { font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .barra .acciones { display:flex; gap:8px; flex-shrink:0; align-items:center; }
+  .barra .pag { color:#666; font-size:13px; white-space:nowrap; }
+  .btn { display:inline-block; padding:6px 10px; border-radius:3px; background:var(--acento);
+    color:#fff; text-decoration:none; font-size:13px; font-weight:bold; white-space:nowrap; }
+  .btn.sec { background:#fff; color:var(--texto); border:1px solid var(--borde); }
+  .paginas { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; background:var(--fondo);
+    padding:12px; }
+  .pagina { position:relative; margin:0 auto 12px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+  .pagina canvas { display:block; width:100%; height:auto; }
+  .estado { padding:40px 16px; text-align:center; font-size:15px; color:#555; }
+  @media (max-width:480px) {
+    .barra { padding:6px 8px; } .barra .titulo { font-size:13px; }
+    .btn.sec { display:none; } .paginas { padding:6px; }
+  }
+</style>
+</head>
+<body>
+<div class="visor">
+  <div class="barra">
+    <span class="titulo">Programa electoral de Vox 2026</span>
+    <span class="acciones">
+      <span class="pag" id="pag"></span>
+      <a class="btn sec" id="abrir" target="_blank" rel="noopener">Abrir</a>
+      <a class="btn" id="descargar" target="_blank" rel="noopener" download>Descargar PDF</a>
+    </span>
+  </div>
+  <div class="paginas" id="paginas">
+    <div class="estado" id="estado">Cargando documento…</div>
+  </div>
+</div>
+
+<script src="pdf.min.js"></script>
+<script>
+  // ==== CONFIGURACIÓN ====
+  // PDF alojado en la MISMA carpeta que este index.html (evita bloqueos CORS).
+  var PDF_URL = "programa-electoral-vox-2026.pdf";
+  // ========================
+
+  var cont = document.getElementById("paginas");
+  var estado = document.getElementById("estado");
+  var pagTxt = document.getElementById("pag");
+  document.getElementById("descargar").href = PDF_URL;
+  document.getElementById("abrir").href = PDF_URL;
+
+  function fallo() {
+    estado.innerHTML = 'No se ha podido mostrar el documento. ' +
+      '<a href="' + PDF_URL + '" target="_blank" rel="noopener">Ábrelo o descárgalo aquí</a>.';
+  }
+
+  if (!window.pdfjsLib) { fallo(); }
+  else {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "pdf.worker.min.js";
+
+    pdfjsLib.getDocument(PDF_URL).promise.then(function (pdf) {
+      estado.remove();
+      var total = pdf.numPages;
+      pagTxt.textContent = total + " págs.";
+      var anchoBase = Math.min(cont.clientWidth - 24, 820);
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      // Crea huecos para todas las páginas y las pinta solo al acercarse (lazy).
+      pdf.getPage(1).then(function (p1) {
+        var vp1 = p1.getViewport({ scale: 1 });
+        var ratio = vp1.height / vp1.width;
+        var pintadas = {};
+
+        var obs = new IntersectionObserver(function (entradas) {
+          entradas.forEach(function (e) {
+            if (!e.isIntersecting) return;
+            var n = +e.target.dataset.n;
+            if (pintadas[n]) return;
+            pintadas[n] = true;
+            pdf.getPage(n).then(function (page) {
+              var vp = page.getViewport({ scale: 1 });
+              var escala = (anchoBase / vp.width) * dpr;
+              var v = page.getViewport({ scale: escala });
+              var c = document.createElement("canvas");
+              c.width = v.width; c.height = v.height;
+              e.target.style.height = "auto";
+              e.target.appendChild(c);
+              page.render({ canvasContext: c.getContext("2d"), viewport: v });
+            });
+          });
+        }, { root: cont, rootMargin: "800px 0px" });
+
+        for (var i = 1; i <= total; i++) {
+          var d = document.createElement("div");
+          d.className = "pagina";
+          d.dataset.n = i;
+          d.style.maxWidth = anchoBase + "px";
+          d.style.height = Math.round(anchoBase * ratio) + "px";
+          d.setAttribute("aria-label", "Página " + i + " de " + total);
+          cont.appendChild(d);
+          obs.observe(d);
+        }
+      });
+    }).catch(fallo);
+  }
+</script>
+</body>
+</html>
