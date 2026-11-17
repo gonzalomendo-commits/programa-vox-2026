@@ -1,0 +1,33 @@
+name: setup
+on:
+  push:
+    paths: ['.github/workflows/setup.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Montar visor
+        env:
+          PDF: "programa-electoral-vox-2026.pdf"
+          SRC: "https://www.voxespana.es/wp-content/uploads/2026/11/Programa-completo-A5-1.pdf"
+          NOMBRE: "de Vox"
+        run: |
+          set -ex
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+          curl -sSL -A "$UA" -H "Accept: application/pdf,*/*" -o "$PDF" -w "HTTP %{http_code} %{content_type} %{size_download}\n" "$SRC"
+          ls -l "$PDF"
+          if ! head -c 5 "$PDF" | grep -q '%PDF'; then head -c 600 "$PDF"; exit 1; fi
+          B=https://raw.githubusercontent.com/gonzalomendo-commits/programa-pp-2026/main
+          curl -fsSL -o pdf.min.js $B/pdf.min.js
+          curl -fsSL -o pdf.worker.min.js $B/pdf.worker.min.js
+          curl -fsSL $B/index.html | sed -e "s|programa-electoral-pp-2026.pdf.pdf|$PDF|" -e "s|Programa electoral del PP|Programa electoral $NOMBRE|g" > index.html
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Visor del programa electoral $NOMBRE"
+          git push
